@@ -129,6 +129,16 @@
   .neg-save-btn{background:#3483FA;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-weight:700;white-space:nowrap;}
   .neg-save-btn:hover{background:#2968c8;}
   .neg-saved-badge{display:inline-block;background:#D4EDDA;color:#00A650;border-radius:6px;padding:3px 8px;font-size:10px;font-weight:700;}
+  .var-cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-top:4px;}
+  .var-card{background:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 2px 8px rgba(0,0,0,0.07);border-left:5px solid #E0E0E0;}
+  .vc-name{font-size:12px;font-weight:700;color:#555;margin-bottom:10px;text-transform:uppercase;letter-spacing:.3px;}
+  .vc-gmv{font-size:20px;font-weight:800;color:#222;margin-bottom:6px;}
+  .vc-meta{font-size:11px;color:#888;margin-bottom:8px;}
+  .vc-badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;}
+  .vc-badge{padding:3px 9px;border-radius:10px;font-size:11px;font-weight:700;}
+  .vc-atg-bar{background:#F0F0F0;border-radius:4px;height:6px;margin-top:4px;overflow:hidden;}
+  .vc-atg-fill-fin{height:100%;border-radius:4px;}
+  .vc-atg-row{display:flex;justify-content:space-between;font-size:10px;color:#AAA;margin-top:3px;}
   .export-btn{background:#F5F5F5;border:1px solid #DDD;border-radius:6px;padding:2px 10px;font-size:11px;color:#555;cursor:pointer;font-weight:600;vertical-align:middle;}
   .export-btn:hover{background:#3483FA;color:#fff;border-color:#3483FA;}
   .wow-badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;margin-left:6px;}
@@ -234,11 +244,15 @@
           <div class="chart-box"><canvas id="vg-mes-canvas" style="max-height:280px;"></canvas></div>
         </div>
       </div>
-      <div class="section"><div class="section-title">Atingimento Mensal por Grupo</div><div class="table-wrap"><table id="vg-table"></table></div></div>
-      <div class="chart-grid" style="margin-bottom:28px;">
-        <div class="section"><div class="section-title">GMV YTD &mdash; Realizado vs Metas</div><div class="chart-box"><canvas id="vg-bar-chart"></canvas></div></div>
-        <div class="section"><div class="section-title">Proje&#231;&#227;o Acumulada vs Meta Financeira 2026</div><div class="chart-box"><canvas id="vg-line-chart"></canvas></div></div>
+      <div class="section">
+        <div class="section-title">Varia&#231;&#245;es MoM &bull; YoY &bull; Atingimento vs Metas</div>
+        <div id="vg-var-cards" class="var-cards-grid"></div>
       </div>
+      <div class="chart-grid" style="margin-bottom:28px;">
+        <div class="section"><div class="section-title">Atingimento vs Meta &mdash; YTD por Grupo &nbsp;<small style="font-weight:400;color:#AAA;">(linha = 100%)</small></div><div class="chart-box"><canvas id="vg-atg-chart" style="max-height:300px;"></canvas></div></div>
+        <div class="section"><div class="section-title">Atingimento Mensal por Grupo</div><div class="table-wrap"><table id="vg-table"></table></div></div>
+      </div>
+      <div class="section"><div class="section-title">Proje&#231;&#227;o Acumulada vs Meta Financeira 2026</div><div class="chart-box"><canvas id="vg-line-chart" style="max-height:280px;"></canvas></div></div>
       <div class="section"><div class="section-title">&#128203; Pontos Corporativos &amp; Acion&#225;veis Priorit&#225;rios</div><div id="vg-corp-actions"></div></div>
     </div>
     <div id="vg-section-full" class="sub-section">
@@ -1077,17 +1091,72 @@ function buildVisaoGeral(){
     body+='<td>'+fmt(ytd)+'</td><td>'+pillHtml(ytd,ytdMF(g))+'</td><td>'+pillHtml(ytd,ytdMD(g))+'</td></tr>';
   });
   body+='</tbody>';tbl.innerHTML=hdr+body;
-  // Bar YTD
-  var keysC=MESES_DONE.slice(0,-1);
-  destroyChart('vg-bar');
-  chartInstances['vg-bar']=new Chart(document.getElementById('vg-bar-chart').getContext('2d'),{type:'bar',
-    data:{labels:GRUPOS.map(function(g){return g.length>14?g.substring(0,14)+'...':g;}),
-    datasets:[
-      {label:'Realizado',data:GRUPOS.map(function(g){return keysC.reduce(function(s,k){return s+(REAL_MENSAL[g][k]||0);},0);}),backgroundColor:C_BLUE,borderRadius:4},
-      {label:'Meta Fin.',data:GRUPOS.map(function(g){return keysC.reduce(function(s,k){return s+(META_FIN[g][k]||0);},0);}),backgroundColor:C_YELLOW,borderRadius:4},
-      {label:'Meta Des.',data:GRUPOS.map(function(g){return keysC.reduce(function(s,k){return s+(META_DES[g][k]||0);},0);}),backgroundColor:C_GREEN,borderRadius:4}
+  // ── Cards de Variação MoM + YoY + Atingimento ──
+  var GRUPO_COR_MAP={'ALUMINIO NACIONAL':'#FF7A00','ATOZ':'#00A650','BRINOX':'#3483FA','OIKOS':'#9B59B6','SHOPGRA':'#B8860B'};
+  var curKey=MESES_DONE[MESES_DONE.length-1];
+  var prevKey=MESES_DONE.length>1?MESES_DONE[MESES_DONE.length-2]:null;
+  var varCardsHtml='';
+  GRUPOS.forEach(function(g){
+    var cor=GRUPO_COR_MAP[g]||C_BLUE;
+    var ytd=ytdReal(g),ymf=ytdMF(g),ymd=ytdMD(g);
+    var pFin=pctNum(ytd,ymf),pDes=pctNum(ytd,ymd);
+    var finColor=pFin>=100?'#00A650':pFin>=80?'#B8860B':'#F23D4F';
+    // MoM
+    var curGMV=REAL_MENSAL[g][curKey]||0;
+    var prevGMV=prevKey?(REAL_MENSAL[g][prevKey]||0):0;
+    var mom=prevGMV>0?((curGMV/prevGMV-1)*100):null;
+    var momBg=mom===null?'#F5F5F5':mom>=0?'#D4EDDA':'#FDECEA';
+    var momClr=mom===null?'#888':mom>=0?'#00A650':'#F23D4F';
+    var momStr=mom===null?'-':(mom>=0?'+':'')+mom.toFixed(1)+'% MoM';
+    // YoY
+    var g25=(REAL_2025[g]||{});
+    var ytd25=PERIODO.reduce(function(s,k){return s+(g25[k]?g25[k].gmv:0);},0);
+    var yoy=ytd25>0?((ytd/ytd25-1)*100):null;
+    var yoyBg=yoy===null?'#F5F5F5':yoy>=0?'#D4EDDA':'#FDECEA';
+    var yoyClr=yoy===null?'#888':yoy>=0?'#00A650':'#F23D4F';
+    var yoyStr=yoy===null?'-':(yoy>=0?'+':'')+yoy.toFixed(1)+'% YoY';
+    // WoW
+    var wow=REAL_WOW_PCT[g]||0;
+    var wowBg=wow>=3?'#D4EDDA':wow<=-3?'#FDECEA':'#F5F5F5';
+    var wowClr=wow>=3?'#00A650':wow<=-3?'#F23D4F':'#888';
+    var wowStr=(wow>=0?'+':'')+wow.toFixed(1)+'% WoW';
+    // Projeção
+    var proj=aprProj(g);
+    var projPct=pctNum(proj,META_FIN[g][curKey]||1);
+    varCardsHtml+='<div class="var-card" style="border-left-color:'+cor+';">';
+    varCardsHtml+='<div class="vc-name">'+g+'</div>';
+    varCardsHtml+='<div class="vc-gmv">'+fmt(ytd)+'</div>';
+    varCardsHtml+='<div class="vc-meta">Meta Fin: '+fmt(ymf)+' &nbsp;|&nbsp; Proj. mês: '+fmt(proj)+'</div>';
+    varCardsHtml+='<div class="vc-badges">';
+    varCardsHtml+='<span class="vc-badge" style="background:'+finColor+'22;color:'+finColor+';">'+pFin.toFixed(1)+'% Meta Fin</span>';
+    varCardsHtml+='<span class="vc-badge" style="background:'+(pDes>=100?'#D4EDDA':pDes>=80?'#FFF3CD':'#FDECEA')+';color:'+(pDes>=100?'#00A650':pDes>=80?'#B8860B':'#F23D4F')+';">'+pDes.toFixed(1)+'% Desafio</span>';
+    varCardsHtml+='<span class="vc-badge" style="background:'+momBg+';color:'+momClr+';">'+momStr+'</span>';
+    varCardsHtml+='<span class="vc-badge" style="background:'+yoyBg+';color:'+yoyClr+';">'+yoyStr+'</span>';
+    varCardsHtml+='<span class="vc-badge" style="background:'+wowBg+';color:'+wowClr+';">'+wowStr+'</span>';
+    varCardsHtml+='</div>';
+    varCardsHtml+='<div><div style="display:flex;justify-content:space-between;font-size:10px;color:#AAA;margin-bottom:3px;"><span>Meta Fin.</span><span style="color:'+finColor+';font-weight:700;">'+pFin.toFixed(1)+'%</span></div>';
+    varCardsHtml+='<div class="vc-atg-bar"><div class="vc-atg-fill-fin" style="width:'+Math.min(pFin,100).toFixed(1)+'%;background:'+finColor+';"></div></div>';
+    varCardsHtml+='<div style="display:flex;justify-content:space-between;font-size:10px;color:#AAA;margin-top:5px;margin-bottom:3px;"><span>Meta Desafio</span><span style="color:'+(pDes>=100?'#00A650':pDes>=80?'#B8860B':'#F23D4F')+';font-weight:700;">'+pDes.toFixed(1)+'%</span></div>';
+    varCardsHtml+='<div class="vc-atg-bar"><div class="vc-atg-fill-fin" style="width:'+Math.min(pDes,100).toFixed(1)+'%;background:'+(pDes>=100?'#00A650':pDes>=80?'#FFB900':'#F23D4F')+';"></div></div>';
+    varCardsHtml+='</div></div>';
+  });
+  document.getElementById('vg-var-cards').innerHTML=varCardsHtml;
+  // ── Gráfico de Atingimento horizontal ──
+  var atgLabels=GRUPOS.map(function(g){return g.length>16?g.substring(0,16)+'...':g;});
+  var atgFin=GRUPOS.map(function(g){return +pctNum(ytdReal(g),ytdMF(g)).toFixed(1);});
+  var atgDes=GRUPOS.map(function(g){return +pctNum(ytdReal(g),ytdMD(g)).toFixed(1);});
+  var atgProj=GRUPOS.map(function(g){return +pctNum(aprProj(g),META_FIN[g][curKey]||1).toFixed(1);});
+  destroyChart('vg-atg');
+  chartInstances['vg-atg']=new Chart(document.getElementById('vg-atg-chart').getContext('2d'),{type:'bar',
+    data:{labels:atgLabels,datasets:[
+      {label:'% Meta Fin. YTD',data:atgFin,backgroundColor:GRUPOS.map(function(g){var p=pctNum(ytdReal(g),ytdMF(g));return p>=100?'#00A650':p>=80?'#FFB900':'#F23D4F';}),borderRadius:4},
+      {label:'% Meta Des. YTD',data:atgDes,backgroundColor:'rgba(0,0,0,0.1)',borderRadius:4},
+      {label:'% Proj. Mês Atual',data:atgProj,type:'line',borderColor:'#3483FA',backgroundColor:'transparent',pointRadius:6,pointBackgroundColor:'#3483FA',borderDash:[4,3],borderWidth:2,yAxisID:'y'}
     ]},
-    options:{responsive:true,plugins:{legend:{position:'top'},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+fmt(c.raw);}}}},scales:{y:{ticks:{callback:function(v){return fmt(v);}}}}}
+    options:{indexAxis:'y',responsive:true,
+      plugins:{legend:{position:'top'},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+c.raw+'%';}}},
+        annotation:{annotations:{line100:{type:'line',xMin:100,xMax:100,borderColor:'#F23D4F',borderWidth:2,borderDash:[6,3],label:{display:true,content:'Meta 100%',position:'end',font:{size:10}}}}}},
+      scales:{x:{min:0,max:130,ticks:{callback:function(v){return v+'%';}}}}}
   });
   // Line proj acumulada
   var lColors=[C_BLUE,C_RED,C_ORANGE,C_PURPLE,'#00BCD4'];
