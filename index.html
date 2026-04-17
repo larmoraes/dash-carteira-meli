@@ -225,6 +225,7 @@
   </div>
   <div class="filtro-sep"></div>
   <button class="filtro-pill active" onclick="setFiltro('ytd',this)">YTD</button>
+  <button class="filtro-pill" onclick="setFiltro('mtd',this)" style="background:#3483FA;border-color:#3483FA;color:#fff;font-weight:800;">MTD</button>
   <button class="filtro-pill" onclick="setFiltro('q1',this)">Q1</button>
   <button class="filtro-pill" onclick="setFiltro('q2',this)">Q2</button>
   <button class="filtro-pill" onclick="setFiltro('ult30',this)">&#218;lt. m&#234;s</button>
@@ -917,6 +918,7 @@ function applyDateRange() {
 function setFiltro(preset, btnEl) {
   var keys = [];
   if (preset==='ytd') { keys = MESES_DONE_FULL.slice(); }
+  else if (preset==='mtd') { keys = [MESES_DONE_FULL[MESES_DONE_FULL.length-1]]; }
   else if (preset==='q1'||preset==='q2'||preset==='q3'||preset==='q4') {
     var qkeys = Q_MAP[preset.toUpperCase()];
     keys = qkeys.filter(function(k){ return MESES_DONE_FULL.indexOf(k)>=0; });
