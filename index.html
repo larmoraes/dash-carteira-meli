@@ -1899,21 +1899,47 @@ function buildVGScorecard() {
   var ytdBB   = GRUPOS.reduce(function(s,g){return s+MESES_DONE.reduce(function(ss,k){return ss+(REAL_PED_BB[g][k]||0);},0);},0);
   var pBPC    = ytdPed > 0 ? pctNum(ytdBB, ytdPed) : 0;
   var pInvGMV = ytdGMV > 0 ? ytdInvT/ytdGMV*100 : 0;
-  var cards = [
-    {label:'GMV YTD', val:fmt(ytdGMV), sub:pMF.toFixed(1)+'% da Meta Fin.', cls:pMF>=100?'sc-green':pMF>=80?'sc-yellow':'sc-red'},
-    {label:'% Meta Financeira', val:pMF.toFixed(1)+'%', sub:'Meta: '+fmt(ytdMFtot), cls:pMF>=100?'sc-green':pMF>=80?'sc-yellow':'sc-red'},
-    {label:'SIs YTD', val:fmtN(ytdSIa), sub:'ASP m\u00e9d: R$ '+Math.round(asp).toLocaleString('pt-BR'), cls:'sc-blue'},
-    {label:'% Fulfillment', val:pFF.toFixed(1)+'%', sub:'FF GMV: '+fmt(ytdFFa), cls:pFF>=80?'sc-green':pFF>=60?'sc-yellow':'sc-red'},
-    {label:'BPC (Buybox %)', val:pBPC.toFixed(1)+'%', sub:'Pedidos com buybox', cls:pBPC>=80?'sc-green':pBPC>=60?'sc-yellow':'sc-red'},
-    {label:'Inv. ADS YTD', val:fmt(ytdInv), sub:'ADS/GMV: '+pAds.toFixed(2)+'%', cls:'sc-blue'},
-    {label:'ROAS (GMV/ADS)', val:roas>0?roas.toFixed(1)+'x':'-', sub:'Retorno bruto ADS', cls:roas>=20?'sc-green':roas>=10?'sc-yellow':'sc-red'},
-    {label:'Cupons YTD', val:fmt(ytdCup), sub:(ytdGMV>0?(ytdCup/ytdGMV*100).toFixed(2)+'% do GMV':''), cls:'sc-blue'},
-    {label:'Investimento Total', val:fmt(ytdInvT), sub:'Inv/GMV: '+pInvGMV.toFixed(2)+'%', cls:'sc-blue'}
-  ];
-  document.getElementById('vg-scorecard').innerHTML =
-    '<div class="scorecard-grid">' +
-    cards.map(function(c){return '<div class="sc-card '+c.cls+'"><div class="sc-label">'+c.label+'</div><div class="sc-value">'+c.val+'</div><div class="sc-sub">'+c.sub+'</div></div>';}).join('') +
-    '</div>';
+  // Visitas & Conversão
+  var totVis=GRUPOS.reduce(function(s,g){return s+PERIODO.reduce(function(ss,k){return ss+((REAL_VIS2[g]&&REAL_VIS2[g][k])?REAL_VIS2[g][k].v:0);},0);},0);
+  var cvr=totVis>0?+(ytdPed/totVis*100).toFixed(2):0;
+
+  function sc(label,val,sub,cls){
+    return '<div class="sc-card '+cls+'"><div class="sc-label">'+label+'</div><div class="sc-value">'+val+'</div><div class="sc-sub">'+sub+'</div></div>';
+  }
+  function sep(label){
+    return '<div style="grid-column:1/-1;display:flex;align-items:center;gap:10px;margin:4px 0 0;">'
+      +'<span style="font-size:10px;font-weight:700;color:#AAA;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;">'+label+'</span>'
+      +'<div style="flex:1;height:1px;background:#E8E8E8;"></div></div>';
+  }
+
+  var html = '<div class="scorecard-grid" style="row-gap:8px;">';
+  // 1. GMV, SIs, ASP
+  html += sep('&#128200; GMV &nbsp;&middot;&nbsp; Volume &nbsp;&middot;&nbsp; Ticket M\u00e9dio');
+  html += sc('GMV YTD', fmt(ytdGMV), pMF.toFixed(1)+'% da Meta Fin.', pMF>=100?'sc-green':pMF>=80?'sc-yellow':'sc-red');
+  html += sc('% Meta Financeira', pMF.toFixed(1)+'%', 'Meta: '+fmt(ytdMFtot), pMF>=100?'sc-green':pMF>=80?'sc-yellow':'sc-red');
+  html += sc('SIs YTD', fmtN(ytdSIa), 'Unidades vendidas', 'sc-blue');
+  html += sc('ASP (Ticket M\u00e9dio)', 'R$ '+Math.round(asp).toLocaleString('pt-BR'), 'GMV \u00f7 SIs', 'sc-blue');
+  // 2. Investimento
+  html += sep('&#128176; Investimento Total');
+  html += sc('Investimento Total', fmt(ytdInvT), 'Inv/GMV: '+pInvGMV.toFixed(2)+'%', 'sc-blue');
+  // 3. Visitas & Conversão
+  html += sep('&#128202; Visitas &amp; Convers\u00e3o');
+  html += sc('Visitas YTD', totVis>0?fmtN(totVis):'N/D', 'Pageviews dispon\u00edveis', 'sc-blue');
+  html += sc('Taxa de Convers\u00e3o', cvr>0?cvr.toFixed(2)+'%':'N/D', 'Pedidos \u00f7 Visitas', cvr>=3?'sc-green':cvr>=1?'sc-yellow':'sc-blue');
+  // 4. BPC
+  html += sep('&#127919; BPC &nbsp;&middot;&nbsp; Buybox');
+  html += sc('BPC (Buybox %)', pBPC.toFixed(1)+'%', 'Pedidos com buybox', pBPC>=80?'sc-green':pBPC>=60?'sc-yellow':'sc-red');
+  // 5. ADS
+  html += sep('&#128226; ADS');
+  html += sc('Inv. ADS YTD', fmt(ytdInv), 'ADS/GMV: '+pAds.toFixed(2)+'%', 'sc-blue');
+  html += sc('ROAS (GMV/ADS)', roas>0?roas.toFixed(1)+'x':'-', 'Retorno bruto ADS', roas>=20?'sc-green':roas>=10?'sc-yellow':'sc-red');
+  html += sc('Cupons YTD', fmt(ytdCup), (ytdGMV>0?(ytdCup/ytdGMV*100).toFixed(2)+'% do GMV':''), 'sc-blue');
+  // 6. Full
+  html += sep('&#128666; Log\u00edstica &nbsp;&middot;&nbsp; Fulfillment');
+  html += sc('% Fulfillment', pFF.toFixed(1)+'%', 'FF GMV: '+fmt(ytdFFa), pFF>=80?'sc-green':pFF>=60?'sc-yellow':'sc-red');
+  html += '</div>';
+
+  document.getElementById('vg-scorecard').innerHTML = html;
 }
 function buildCorpAcionaveis() {
   var points = [];
