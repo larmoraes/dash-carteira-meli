@@ -1246,24 +1246,126 @@ function buildVisaoGeral(){
     uHtml+='</div></div>';
   });
   document.getElementById('vg-unified-cards').innerHTML=uHtml;
-  // Line proj acumulada
-  var lColors=[C_BLUE,C_RED,C_ORANGE,C_PURPLE,'#00BCD4'];
+  // ── Projeção Acumulada — redesign limpo ──
+  var GCORS={'ALUMINIO NACIONAL':'#FF7A00','ATOZ':'#00A650','BRINOX':'#3483FA','OIKOS':'#9B59B6','SHOPGRA':'#B8860B'};
   var ds=[];
-  GRUPOS.forEach(function(g,gi){
-    var cumP=[],cumM=[],cumR=0,cumMv=0,done=false;
-    MESES_KEYS.forEach(function(mk,mi){
-      cumMv+=META_FIN[g][mk];cumM.push(cumMv);
-      var rv=REAL_MENSAL[g][mk];
-      if(rv!==undefined&&!done){cumR+=(mk===MESES_DONE[MESES_DONE.length-1])?rv*FAT_PROJ:rv;cumP.push(cumR);if(mk===MESES_DONE[MESES_DONE.length-1])done=true;}
-      else{cumP.push(null);}
+  // Total Meta Financeira (1 linha de referência)
+  var metaTotalCum=MESES_KEYS.map(function(mk,mi){
+    return GRUPOS.reduce(function(s,g){
+      return s+MESES_KEYS.slice(0,mi+1).reduce(function(ss,m){return ss+(META_FIN[g][m]||0);},0);
+    },0);
+  });
+  ds.push({
+    label:'Meta Financeira Total',
+    data:metaTotalCum,
+    borderColor:'rgba(0,0,0,0.25)',
+    backgroundColor:'transparent',
+    borderWidth:2,
+    borderDash:[8,4],
+    pointRadius:0,
+    tension:0.2,
+    order:10
+  });
+  // Total realizado/projetado (linha grossa — destaque)
+  var totalCumProj=MESES_KEYS.map(function(mk,mi){
+    var allDone=true;
+    var total=0;
+    GRUPOS.forEach(function(g){
+      var cumG=0,donG=false;
+      MESES_KEYS.slice(0,mi+1).forEach(function(m){
+        var rv=REAL_MENSAL[g][m];
+        if(rv!==undefined&&!donG){
+          cumG+=(m===MESES_DONE[MESES_DONE.length-1])?rv*FAT_PROJ:rv;
+          if(m===MESES_DONE[MESES_DONE.length-1])donG=true;
+        }
+      });
+      if(MESES_KEYS.indexOf(mk)>MESES_KEYS.indexOf(MESES_DONE[MESES_DONE.length-1]))allDone=false;
+      total+=cumG;
     });
-    var lbl=g.length>12?g.substring(0,12)+'...':g;
-    ds.push({label:lbl+' Proj.',data:cumP,borderColor:lColors[gi],backgroundColor:'transparent',borderDash:[5,3],pointRadius:4,tension:0.3,spanGaps:false});
-    ds.push({label:lbl+' Meta',data:cumM,borderColor:lColors[gi],backgroundColor:'transparent',borderWidth:1.5,pointRadius:2,tension:0.3});
+    return allDone?null:total;
+  });
+  // Remove nulls trailing
+  var lastNonNull=-1;
+  totalCumProj.forEach(function(v,i){if(v!==null)lastNonNull=i;});
+  var totalCumClean=totalCumProj.map(function(v,i){return i<=lastNonNull?v:null;});
+  ds.push({
+    label:'Total Carteira (Proj.)',
+    data:totalCumClean,
+    borderColor:'#333',
+    backgroundColor:'rgba(0,0,0,0.04)',
+    fill:true,
+    borderWidth:3,
+    pointRadius:function(ctx){return ctx.dataIndex===lastNonNull?7:0;},
+    pointBackgroundColor:'#333',
+    tension:0.3,
+    spanGaps:false,
+    order:1
+  });
+  // Projeção por grupo (linhas coloridas, mais finas)
+  GRUPOS.forEach(function(g,gi){
+    var cumP=[],cumR=0,done=false;
+    MESES_KEYS.forEach(function(mk){
+      var rv=REAL_MENSAL[g][mk];
+      if(rv!==undefined&&!done){
+        cumR+=(mk===MESES_DONE[MESES_DONE.length-1])?rv*FAT_PROJ:rv;
+        cumP.push(cumR);
+        if(mk===MESES_DONE[MESES_DONE.length-1])done=true;
+      } else {cumP.push(null);}
+    });
+    var cor=GCORS[g]||C_BLUE;
+    var lbl=g.length>14?g.substring(0,14)+'...':g;
+    ds.push({
+      label:lbl,
+      data:cumP,
+      borderColor:cor,
+      backgroundColor:cor+'18',
+      fill:false,
+      borderWidth:2.5,
+      pointRadius:function(ctx){
+        var lastIdx=cumP.reduce(function(acc,v,i){return v!==null?i:acc;},-1);
+        return ctx.dataIndex===lastIdx?6:0;
+      },
+      pointBackgroundColor:cor,
+      pointBorderColor:'#fff',
+      pointBorderWidth:2,
+      tension:0.3,
+      spanGaps:false,
+      order:gi+2
+    });
   });
   destroyChart('vg-line');
-  chartInstances['vg-line']=new Chart(document.getElementById('vg-line-chart').getContext('2d'),{type:'line',data:{labels:MESES_LABEL,datasets:ds},
-    options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}}},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+fmt(c.raw);}}}},scales:{y:{ticks:{callback:function(v){return fmt(v);}}}}}
+  chartInstances['vg-line']=new Chart(document.getElementById('vg-line-chart').getContext('2d'),{
+    type:'line',
+    data:{labels:MESES_LABEL,datasets:ds},
+    options:{
+      responsive:true,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{
+          position:'bottom',
+          labels:{
+            boxWidth:12,
+            font:{size:11},
+            filter:function(item){return item.text!=='';}
+          }
+        },
+        tooltip:{
+          callbacks:{
+            label:function(c){
+              if(c.raw===null)return null;
+              return c.dataset.label+': '+fmt(c.raw);
+            }
+          }
+        }
+      },
+      scales:{
+        x:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:11}}},
+        y:{
+          grid:{color:'rgba(0,0,0,0.04)'},
+          ticks:{callback:function(v){return fmt(v);},font:{size:11}}
+        }
+      }
+    }
   });
   buildVGScorecard();
   buildCorpAcionaveis();
