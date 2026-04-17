@@ -1469,9 +1469,9 @@ function buildVGQuarters(){
 // ── Item Thumbnail Helper ──
 function thumbCell(id, title, extraLine) {
   var src = ITEM_THUMBS[String(id)] || '';
-  var img = src
-    ? '<img src="'+src+'" class="item-thumb" loading="lazy" onerror="this.style.display=\'none\'">'
-    : '<div class="item-thumb" style="display:flex;align-items:center;justify-content:center;color:#CCC;font-size:18px;">&#128247;</div>';
+  var _c=['#3483FA','#00A650','#FF7A00','#9B59B6','#B8860B','#00BCD4'];
+  var _ph='<div class="item-thumb" style="background:'+_c[(String(id).charCodeAt(String(id).length-1)||0)%6]+';display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:800;">'+(title||'?')[0].toUpperCase()+'</div>';
+  var img = src ? '<img src="'+src+'" class="item-thumb" loading="lazy" onerror="this.outerHTML=_ph">' : _ph;
   return '<td style="padding:6px 10px;"><div class="item-thumb-wrap">'+img
     +'<div class="item-thumb-info"><span class="item-thumb-name" title="'+title+'">'+title+'</span>'
     +(extraLine?'<span class="item-thumb-id">'+extraLine+'</span>':'')
