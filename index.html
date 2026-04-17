@@ -215,6 +215,7 @@
   <div class="subtitle">
     <button id="btn-present" onclick="togglePresentation()" style="background:#3483FA;color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer;margin-right:8px;">&#9654; Apresentar</button>
     <span class="update-badge">&#10003; Atualizado 17/04/2026</span>
+    <span id="tracking-badge" style="font-size:11px;color:#888;padding:3px 10px;background:#F5F5F5;border-radius:20px;border:1px solid #E0E0E0;"></span>
     <span class="badge">Fonte <strong>DM_EFICIENCIA_MLB</strong></span>
     <span class="badge">Projeto <strong>meli-bi-data</strong></span>
   </div>
@@ -2109,9 +2110,52 @@ function buildAcoes(grupo,id){
   }).join('');
 }
 
+// ── Tracking de Acesso ──
+var TRACKING_URL = ''; // Cole aqui a URL do Web App após configurar o Apps Script
+function initTracking() {
+  if (!TRACKING_URL) return;
+  var stored = localStorage.getItem('meli_visitor_name');
+  if (stored) {
+    _registerVisit(stored);
+    return;
+  }
+  // Primeira visita — pergunta o nome
+  var banner = document.createElement('div');
+  banner.id = 'visitor-banner';
+  banner.style.cssText = 'position:fixed;bottom:40px;right:24px;z-index:9999;background:#fff;border:1px solid #E0E0E0;border-radius:12px;padding:16px 18px;box-shadow:0 4px 20px rgba(0,0,0,0.15);display:flex;align-items:center;gap:10px;';
+  banner.innerHTML = '<span style="font-size:13px;color:#333;">👋 Olá! Qual é o seu nome?</span>'
+    + '<input id="visitor-name-input" type="text" placeholder="Seu nome" style="border:1px solid #DDD;border-radius:6px;padding:5px 10px;font-size:12px;width:140px;outline:none;">'
+    + '<button onclick="_saveVisitorName()" style="background:#3483FA;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;">Entrar</button>';
+  document.body.appendChild(banner);
+  document.getElementById('visitor-name-input').addEventListener('keypress', function(e){ if(e.key==='Enter') _saveVisitorName(); });
+  setTimeout(function(){ if(document.getElementById('visitor-banner')) document.getElementById('visitor-banner').remove(); }, 15000);
+}
+function _saveVisitorName() {
+  var inp = document.getElementById('visitor-name-input');
+  var name = inp ? inp.value.trim() : '';
+  if (!name) return;
+  localStorage.setItem('meli_visitor_name', name);
+  var b = document.getElementById('visitor-banner');
+  if (b) b.remove();
+  _registerVisit(name);
+}
+function _registerVisit(name) {
+  var badge = document.getElementById('tracking-badge');
+  if (badge) badge.textContent = '👤 ' + name;
+  if (!TRACKING_URL) return;
+  try {
+    fetch(TRACKING_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name: name, page: window.location.href, ua: navigator.userAgent.substring(0,100), ref: document.referrer})
+    });
+  } catch(e) {}
+}
+
 // ── Init ──
 window.addEventListener('DOMContentLoaded',function(){
   initFiltroMeses();
+  initTracking();
   buildVisaoGeral(); buildVGQuarters(); buildVGMesControl();
   buildLogistica();
   buildADS();
